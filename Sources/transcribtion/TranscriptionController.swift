@@ -24,12 +24,12 @@ final class TranscriptionController {
         requestMicrophoneAccess { [weak self] granted in
             guard let self else { return }
             if !granted {
-                self.updateUI("Audio input access denied.")
+                self.logError("Audio input access denied.")
                 return
             }
 
             guard let apiKey = EnvLoader.loadApiKey() else {
-                self.updateUI("Missing ELEVENLABS_API_KEY in .env.")
+                self.logError("Missing ELEVENLABS_API_KEY in .env.")
                 return
             }
 
@@ -39,7 +39,9 @@ final class TranscriptionController {
     }
 
     func clearTranscription() {
-        resetConnection()
+        committedText = ""
+        partialText = ""
+        updateUI("Listening...")
     }
 
     func insertTabMarker() {
@@ -89,7 +91,7 @@ final class TranscriptionController {
             guard let self else { return }
             switch result {
             case .failure(let error):
-                self.updateUI("WebSocket error: \(error.localizedDescription)")
+                self.logError("WebSocket error: \(error.localizedDescription)")
             case .success(let message):
                 switch message {
                 case .data(let data):
@@ -146,7 +148,7 @@ final class TranscriptionController {
             updateUI(currentDisplayText())
         case "auth_error", "quota_exceeded", "transcriber_error", "input_error", "error":
             let errorText = dict["error"] as? String ?? "Unknown error"
-            updateUI("Scribe error: \(errorText)")
+            logError("Scribe error: \(errorText)")
         default:
             break
         }
@@ -169,7 +171,7 @@ final class TranscriptionController {
         if let deviceName = EnvLoader.loadAudioDeviceName(),
            !deviceName.isEmpty {
             if !AudioDeviceSelector.setInputDevice(named: deviceName, for: inputNode) {
-                updateUI("Input device not found: \(deviceName)")
+                logError("Input device not found: \(deviceName)")
             }
         }
 
@@ -190,7 +192,7 @@ final class TranscriptionController {
         do {
             try audioEngine.start()
         } catch {
-            updateUI("Audio engine error: \(error.localizedDescription)")
+            logError("Audio engine error: \(error.localizedDescription)")
         }
     }
 
@@ -217,7 +219,7 @@ final class TranscriptionController {
         }
 
         if let error {
-            updateUI("Audio convert error: \(error.localizedDescription)")
+            logError("Audio convert error: \(error.localizedDescription)")
             return
         }
 
@@ -251,30 +253,7 @@ final class TranscriptionController {
         }
     }
 
-    private func resetConnection() {
-        guard !isRestarting else { return }
-        isRestarting = true
-
-        committedText = ""
-        partialText = ""
-        lastCommitTime = nil
-        isSessionReady = false
-        updateUI("Listening...")
-
-        webSocket?.cancel(with: .goingAway, reason: nil)
-        webSocket = nil
-        stopAudioCapture()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            guard let self else { return }
-            guard let apiKey = EnvLoader.loadApiKey() else {
-                self.updateUI("Missing ELEVENLABS_API_KEY in .env.")
-                self.isRestarting = false
-                return
-            }
-            self.connectWebSocket(apiKey: apiKey)
-            self.startAudioCapture()
-            self.isRestarting = false
-        }
+    private func logError(_ message: String) {
+        NSLog("[Transcription] %@", message)
     }
 }

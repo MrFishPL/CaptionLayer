@@ -25,14 +25,14 @@ final class NotchView: NSView {
     static let markerToken = "[tab]"
     private let maskLayer = CAShapeLayer()
     private let textView: NSTextView
-    private let scrollView: NoScrollView
+    private let scrollView: NSScrollView
     private let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
     private var hoverTrackingArea: NSTrackingArea?
     private(set) var isHovering = false
 
     override init(frame frameRect: NSRect) {
         textView = NSTextView(frame: .zero)
-        scrollView = NoScrollView(frame: .zero)
+        scrollView = NSScrollView(frame: .zero)
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
@@ -48,9 +48,9 @@ final class NotchView: NSView {
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
-        textView.textContainer?.lineBreakMode = .byClipping
-        textView.textContainer?.widthTracksTextView = false
-        textView.textContainer?.heightTracksTextView = true
+        textView.textContainer?.lineBreakMode = .byWordWrapping
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
         textView.string = "Listening..."
 
         scrollView.drawsBackground = false
@@ -107,7 +107,8 @@ final class NotchView: NSView {
     }
 
     func setText(_ text: String) {
-        let displayText = normalizeWhitespace(text)
+        let displayText = text
+        textView.alignment = .center
         let attributed = NSMutableAttributedString(
             string: displayText,
             attributes: [
@@ -136,41 +137,28 @@ final class NotchView: NSView {
         updateTextLayout()
     }
 
-    private func normalizeWhitespace(_ text: String) -> String {
-        var result = ""
-        result.reserveCapacity(text.count)
-        var previousWasSpace = false
-        for ch in text {
-            if ch.isWhitespace || ch.isNewline {
-                if !previousWasSpace {
-                    result.append(" ")
-                    previousWasSpace = true
-                }
-            } else {
-                result.append(ch)
-                previousWasSpace = false
-            }
-        }
-        return result.trimmingCharacters(in: .whitespaces)
-    }
-
     private func updateTextLayout() {
         let width = scrollView.bounds.width
         guard width > 0 else { return }
-        let lineHeight = font.ascender - font.descender + font.leading
-        textView.textContainer?.size = NSSize(width: .greatestFiniteMagnitude, height: lineHeight)
-        textView.textContainer?.containerSize = NSSize(width: .greatestFiniteMagnitude, height: lineHeight)
-        textView.minSize = NSSize(width: 0, height: lineHeight)
-        textView.maxSize = NSSize(width: .greatestFiniteMagnitude, height: lineHeight)
-        textView.isHorizontallyResizable = true
-        textView.isVerticallyResizable = false
+        textView.textContainer?.size = NSSize(width: width, height: .greatestFiniteMagnitude)
+        textView.minSize = NSSize(width: width, height: 0)
+        textView.maxSize = NSSize(width: width, height: .greatestFiniteMagnitude)
+
         textView.textContainerInset = NSSize(width: 0, height: 0)
-        textView.frame = NSRect(x: 0, y: 0, width: textView.frame.width, height: lineHeight)
+        textView.frame = NSRect(x: 0, y: 0, width: width, height: textView.frame.height)
         textView.sizeToFit()
 
-        let maxOffset = max(0, textView.frame.width - scrollView.contentSize.width)
-        scrollView.contentView.scroll(to: NSPoint(x: maxOffset, y: 0))
-        scrollView.reflectScrolledClipView(scrollView.contentView)
+        let visibleHeight = ceil((font.ascender - font.descender + font.leading) * AppConfig.visibleLines)
+        if let container = textView.textContainer,
+           let layout = textView.layoutManager {
+            layout.ensureLayout(for: container)
+            let contentHeight = layout.usedRect(for: container).height
+            let inset = max(0, (visibleHeight - contentHeight) / 2)
+            textView.textContainerInset = NSSize(width: 0, height: inset)
+            textView.frame = NSRect(x: 0, y: 0, width: width, height: max(visibleHeight, contentHeight + inset * 2))
+        }
+
+        textView.scrollToEndOfDocument(nil)
     }
 
     private func updateMaskPath() {
@@ -217,11 +205,5 @@ final class MarkerAttachmentCell: NSTextAttachmentCell {
         )
         NSColor.systemBlue.setFill()
         rect.fill()
-    }
-}
-
-final class NoScrollView: NSScrollView {
-    override func scrollWheel(with event: NSEvent) {
-        // Disable user scrolling.
     }
 }
