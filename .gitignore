@@ -16,3 +16,4 @@ DerivedData/
 *.xcworkspace
 *.xcodeproj
 *.xcscheme
+.swiftpm-cache

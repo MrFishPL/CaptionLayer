@@ -2,7 +2,16 @@ import Foundation
 
 enum EnvLoader {
     static func loadApiKey() -> String? {
-        if let value = ProcessInfo.processInfo.environment["ELEVENLABS_API_KEY"], !value.isEmpty {
+        if let value = loadValue(for: "ELEVENLABS_API_KEY") { return value }
+        return nil
+    }
+
+    static func loadAudioDeviceName() -> String? {
+        return loadValue(for: "AUDIO_INPUT_DEVICE")
+    }
+
+    private static func loadValue(for key: String) -> String? {
+        if let value = ProcessInfo.processInfo.environment[key], !value.isEmpty {
             return value
         }
 
@@ -18,7 +27,7 @@ enum EnvLoader {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
             let parts = trimmed.split(separator: "=", maxSplits: 1)
-            if parts.count == 2 && parts[0] == "ELEVENLABS_API_KEY" {
+            if parts.count == 2 && parts[0] == key {
                 return String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }

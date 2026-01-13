@@ -23,7 +23,7 @@ final class TranscriptionController {
         requestMicrophoneAccess { [weak self] granted in
             guard let self else { return }
             if !granted {
-                self.updateUI("Microphone access denied.")
+                self.updateUI("Audio input access denied.")
                 return
             }
 
@@ -153,6 +153,13 @@ final class TranscriptionController {
 
     private func startAudioCapture() {
         let inputNode = audioEngine.inputNode
+        if let deviceName = EnvLoader.loadAudioDeviceName(),
+           !deviceName.isEmpty {
+            if !AudioDeviceSelector.setInputDevice(named: deviceName, for: inputNode) {
+                updateUI("Input device not found: \(deviceName)")
+            }
+        }
+
         let inputFormat = inputNode.outputFormat(forBus: 0)
         let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
