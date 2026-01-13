@@ -12,6 +12,7 @@ final class NotchPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         level = .statusBar
+        acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         setFrame(frame, display: true)
     }
@@ -21,10 +22,13 @@ final class NotchPanel: NSPanel {
 }
 
 final class NotchView: NSView {
+    static let markerToken = "▮"
     private let maskLayer = CAShapeLayer()
     private let textView: NSTextView
     private let scrollView: NSScrollView
     private let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
+    private var hoverTrackingArea: NSTrackingArea?
+    private(set) var isHovering = false
 
     override init(frame frameRect: NSRect) {
         textView = NSTextView(frame: .zero)
@@ -82,8 +86,48 @@ final class NotchView: NSView {
         updateMaskPath()
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+
+        let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .inVisibleRect]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        hoverTrackingArea = area
+        addTrackingArea(area)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+    }
+
     func setText(_ text: String) {
-        textView.string = text
+        let attributed = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .font: font,
+                .foregroundColor: NSColor.white.withAlphaComponent(0.9),
+            ]
+        )
+
+        let marker = NotchView.markerToken
+        if !marker.isEmpty {
+            var searchRange = NSRange(location: 0, length: attributed.length)
+            while true {
+                let found = (attributed.string as NSString).range(of: marker, options: [], range: searchRange)
+                if found.location == NSNotFound { break }
+                attributed.addAttribute(.foregroundColor, value: NSColor.systemBlue, range: found)
+                let nextLocation = found.location + found.length
+                searchRange = NSRange(location: nextLocation, length: attributed.length - nextLocation)
+            }
+        }
+
+        textView.textStorage?.setAttributedString(attributed)
         updateTextLayout()
     }
 

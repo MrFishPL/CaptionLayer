@@ -37,6 +37,24 @@ final class TranscriptionController {
         }
     }
 
+    func clearTranscription() {
+        committedText = ""
+        partialText = ""
+        updateUI("Listening...")
+    }
+
+    func insertTabMarker() {
+        let marker = NotchView.markerToken
+        if committedText.isEmpty {
+            committedText = marker + " "
+        } else {
+            let separator = committedText.hasSuffix("\n") ? "" : "\n"
+            committedText = committedText + separator + marker + " "
+        }
+        committedText = trimIfNeeded(committedText)
+        updateUI(currentDisplayText())
+    }
+
     private func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             DispatchQueue.main.async {

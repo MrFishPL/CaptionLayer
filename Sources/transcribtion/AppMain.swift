@@ -21,6 +21,20 @@ struct TranscribtionApp {
         let transcription = TranscriptionController(notchView: notchView)
         transcription.start()
 
+        let hotKeyManager = HotKeyManager(
+            definitions: [AppConfig.clearHotKey, AppConfig.tabHotKey]
+        ) { hotKeyID in
+            switch hotKeyID {
+            case AppConfig.clearHotKey.id:
+                transcription.clearTranscription()
+            case AppConfig.tabHotKey.id:
+                transcription.insertTabMarker()
+            default:
+                break
+            }
+        }
+        _ = hotKeyManager
+
         app.run()
     }
 }
