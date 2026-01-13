@@ -12,6 +12,7 @@ final class NotchPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         level = .statusBar
+        ignoresMouseEvents = true
         acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         setFrame(frame, display: true)
@@ -35,7 +36,7 @@ final class NotchView: NSView {
         scrollView = NSScrollView(frame: .zero)
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.75).cgColor
         layer?.mask = maskLayer
 
         textView.font = font

@@ -135,7 +135,7 @@ final class TranscriptionController {
                 if committedText.isEmpty {
                     prefix = ""
                 } else if gap >= AppConfig.pauseForBlankLine {
-                    prefix = "\n\n"
+                    prefix = "\n"
                 } else {
                     prefix = " "
                 }
