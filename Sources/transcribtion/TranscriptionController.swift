@@ -11,6 +11,7 @@ final class TranscriptionController {
     private var partialText = ""
     private var isSessionReady = false
     private var lastCommitTime: Date?
+    private var isRestarting = false
 
     private let targetSampleRate: Double = 16_000
     private let targetChannels: AVAudioChannelCount = 1
@@ -38,19 +39,13 @@ final class TranscriptionController {
     }
 
     func clearTranscription() {
-        committedText = ""
-        partialText = ""
-        updateUI("Listening...")
+        resetConnection()
     }
 
     func insertTabMarker() {
         let marker = NotchView.markerToken
-        if committedText.isEmpty {
-            committedText = marker + " "
-        } else {
-            let separator = committedText.hasSuffix("\n") ? "" : "\n"
-            committedText = committedText + separator + marker + " "
-        }
+        let prefix = committedText.isEmpty ? "" : " "
+        committedText = committedText + prefix + marker + " "
         committedText = trimIfNeeded(committedText)
         updateUI(currentDisplayText())
     }
@@ -199,6 +194,13 @@ final class TranscriptionController {
         }
     }
 
+    private func stopAudioCapture() {
+        let inputNode = audioEngine.inputNode
+        inputNode.removeTap(onBus: 0)
+        audioEngine.stop()
+        audioConverter = nil
+    }
+
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer, targetFormat: AVAudioFormat) {
         guard let converter = audioConverter else { return }
 
@@ -246,6 +248,33 @@ final class TranscriptionController {
     private func updateUI(_ text: String) {
         DispatchQueue.main.async { [weak self] in
             self?.notchView.setText(text)
+        }
+    }
+
+    private func resetConnection() {
+        guard !isRestarting else { return }
+        isRestarting = true
+
+        committedText = ""
+        partialText = ""
+        lastCommitTime = nil
+        isSessionReady = false
+        updateUI("Listening...")
+
+        webSocket?.cancel(with: .goingAway, reason: nil)
+        webSocket = nil
+        stopAudioCapture()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            guard let apiKey = EnvLoader.loadApiKey() else {
+                self.updateUI("Missing ELEVENLABS_API_KEY in .env.")
+                self.isRestarting = false
+                return
+            }
+            self.connectWebSocket(apiKey: apiKey)
+            self.startAudioCapture()
+            self.isRestarting = false
         }
     }
 }

@@ -22,7 +22,7 @@ final class NotchPanel: NSPanel {
 }
 
 final class NotchView: NSView {
-    static let markerToken = "▮"
+    static let markerToken = "[tab]"
     private let maskLayer = CAShapeLayer()
     private let textView: NSTextView
     private let scrollView: NSScrollView
@@ -121,9 +121,13 @@ final class NotchView: NSView {
             while true {
                 let found = (attributed.string as NSString).range(of: marker, options: [], range: searchRange)
                 if found.location == NSNotFound { break }
-                attributed.addAttribute(.foregroundColor, value: NSColor.systemBlue, range: found)
-                let nextLocation = found.location + found.length
-                searchRange = NSRange(location: nextLocation, length: attributed.length - nextLocation)
+                let attachment = NSTextAttachment()
+                attachment.attachmentCell = MarkerAttachmentCell()
+                let replacement = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+                replacement.append(NSAttributedString(string: " ", attributes: [.font: font]))
+                attributed.replaceCharacters(in: found, with: replacement)
+                let nextLocation = found.location + replacement.length
+                searchRange = NSRange(location: nextLocation, length: max(0, attributed.length - nextLocation))
             }
         }
 
@@ -180,5 +184,24 @@ final class NotchView: NSView {
         path.closeSubpath()
 
         maskLayer.path = path
+    }
+}
+
+final class MarkerAttachmentCell: NSTextAttachmentCell {
+    private let size = NSSize(width: 6, height: 6)
+
+    override func cellSize() -> NSSize {
+        size
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        let rect = NSRect(
+            x: cellFrame.minX,
+            y: cellFrame.minY + (cellFrame.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+        NSColor.systemBlue.setFill()
+        rect.fill()
     }
 }
