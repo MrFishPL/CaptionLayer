@@ -20,6 +20,8 @@ struct TranscribtionApp {
 
         let transcription = TranscriptionController(notchView: notchView)
         transcription.start()
+        let statusBar = StatusBarController(panel: panel, transcription: transcription)
+        _ = statusBar
 
         app.run()
     }

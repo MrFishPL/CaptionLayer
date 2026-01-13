@@ -11,7 +11,8 @@ final class TranscriptionController {
     private var partialText = ""
     private var isSessionReady = false
     private var lastCommitTime: Date?
-    private var isRestarting = false
+    private var isListening = false
+    private var apiKey: String?
 
     private let targetSampleRate: Double = 16_000
     private let targetChannels: AVAudioChannelCount = 1
@@ -21,6 +22,11 @@ final class TranscriptionController {
     }
 
     func start() {
+        resumeListening()
+    }
+
+    func resumeListening() {
+        guard !isListening else { return }
         requestMicrophoneAccess { [weak self] granted in
             guard let self else { return }
             if !granted {
@@ -28,14 +34,27 @@ final class TranscriptionController {
                 return
             }
 
-            guard let apiKey = EnvLoader.loadApiKey() else {
+            guard let apiKey = self.apiKey ?? EnvLoader.loadApiKey() else {
                 self.logError("Missing ELEVENLABS_API_KEY in .env.")
                 return
             }
 
+            self.apiKey = apiKey
+            self.isListening = true
+            self.isSessionReady = false
             self.connectWebSocket(apiKey: apiKey)
             self.startAudioCapture()
         }
+    }
+
+    func stopListening() {
+        guard isListening else { return }
+        isListening = false
+        isSessionReady = false
+        stopAudioCapture()
+        webSocket?.cancel(with: .goingAway, reason: nil)
+        webSocket = nil
+        updateUI("Paused")
     }
 
     func clearTranscription() {
@@ -87,7 +106,8 @@ final class TranscriptionController {
     }
 
     private func receiveMessages() {
-        webSocket?.receive { [weak self] result in
+        guard isListening, let webSocket else { return }
+        webSocket.receive { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let error):
@@ -167,6 +187,7 @@ final class TranscriptionController {
     }
 
     private func startAudioCapture() {
+        guard !audioEngine.isRunning else { return }
         let inputNode = audioEngine.inputNode
         if let deviceName = EnvLoader.loadAudioDeviceName(),
            !deviceName.isEmpty {
@@ -197,6 +218,7 @@ final class TranscriptionController {
     }
 
     private func stopAudioCapture() {
+        guard audioEngine.isRunning else { return }
         let inputNode = audioEngine.inputNode
         inputNode.removeTap(onBus: 0)
         audioEngine.stop()
@@ -230,7 +252,7 @@ final class TranscriptionController {
     }
 
     private func sendAudioData(_ data: Data, sampleRate: Int) {
-        guard isSessionReady, let webSocket else { return }
+        guard isListening, isSessionReady, let webSocket else { return }
         let payload: [String: Any] = [
             "message_type": "input_audio_chunk",
             "audio_base_64": data.base64EncodedString(),
