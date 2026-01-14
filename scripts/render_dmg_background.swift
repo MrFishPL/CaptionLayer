@@ -17,9 +17,11 @@ NSColor.white.setFill()
 NSRect(origin: .zero, size: size).fill()
 
 let arrowColor = NSColor(white: 0.8, alpha: 1.0)
-let startX: CGFloat = 300
-let endX: CGFloat = 430
-let midY: CGFloat = 260
+let centerX: CGFloat = size.width / 2
+let arrowLength: CGFloat = 120
+let startX: CGFloat = centerX - arrowLength / 2
+let endX: CGFloat = centerX + arrowLength / 2
+let midY: CGFloat = 180
 
 let arrowPath = NSBezierPath()
 arrowPath.move(to: NSPoint(x: startX, y: midY))

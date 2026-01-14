@@ -1,9 +1,22 @@
 import Foundation
 
 enum EnvLoader {
+    private static let apiKeyDefaultsKey = "ELEVENLABS_API_KEY"
+
     static func loadApiKey() -> String? {
+        if let value = UserDefaults.standard.string(forKey: apiKeyDefaultsKey), !value.isEmpty {
+            return value
+        }
         if let value = loadValue(for: "ELEVENLABS_API_KEY") { return value }
         return nil
+    }
+
+    static func saveApiKey(_ value: String) {
+        UserDefaults.standard.set(value, forKey: apiKeyDefaultsKey)
+    }
+
+    static func removeApiKey() {
+        UserDefaults.standard.removeObject(forKey: apiKeyDefaultsKey)
     }
 
     static func loadAudioDeviceName() -> String? {

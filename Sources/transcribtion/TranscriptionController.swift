@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import AppKit
 
 final class TranscriptionController {
     private let notchView: NotchView
@@ -13,6 +14,7 @@ final class TranscriptionController {
     private var lastCommitTime: Date?
     private var isListening = false
     private var apiKey: String?
+    private var didShowAuthError = false
 
     private let targetSampleRate: Double = 16_000
     private let targetChannels: AVAudioChannelCount = 1
@@ -27,15 +29,26 @@ final class TranscriptionController {
 
     func resumeListening() {
         guard !isListening else { return }
+        guard let apiKey = apiKey ?? EnvLoader.loadApiKey() else {
+            presentTokenPrompt { [weak self] token in
+                guard let self else { return }
+                guard let token, !token.isEmpty else {
+                    self.logError("Missing ELEVENLABS_API_KEY.")
+                    self.alertMissingTokenAndQuit()
+                    return
+                }
+                EnvLoader.saveApiKey(token)
+                self.apiKey = token
+                self.resumeListening()
+            }
+            return
+        }
+
+        didShowAuthError = false
         requestMicrophoneAccess { [weak self] granted in
             guard let self else { return }
             if !granted {
                 self.logError("Audio input access denied.")
-                return
-            }
-
-            guard let apiKey = self.apiKey ?? EnvLoader.loadApiKey() else {
-                self.logError("Missing ELEVENLABS_API_KEY in .env.")
                 return
             }
 
@@ -169,6 +182,9 @@ final class TranscriptionController {
         case "auth_error", "quota_exceeded", "transcriber_error", "input_error", "error":
             let errorText = dict["error"] as? String ?? "Unknown error"
             logError("Scribe error: \(errorText)")
+            if messageType == "auth_error" {
+                handleAuthError()
+            }
         default:
             break
         }
@@ -277,5 +293,51 @@ final class TranscriptionController {
 
     private func logError(_ message: String) {
         NSLog("[Transcription] %@", message)
+    }
+
+    private func handleAuthError() {
+        guard !didShowAuthError else { return }
+        didShowAuthError = true
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "There was an error. Is your token correct?"
+            alert.informativeText = "Capture Layer will now quit. Please check your ElevenLabs API key."
+            alert.addButton(withTitle: "Quit")
+            alert.runModal()
+            EnvLoader.removeApiKey()
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    func presentTokenPrompt(completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Enter ElevenLabs API Key"
+            alert.informativeText = "This key is saved locally for Capture Layer."
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            field.placeholderString = "ELEVENLABS_API_KEY"
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                completion(value.isEmpty ? nil : value)
+            } else {
+                completion(nil)
+            }
+        }
+    }
+
+    private func alertMissingTokenAndQuit() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Token Required"
+            alert.informativeText = "Please set your ElevenLabs API key to use Capture Layer."
+            alert.addButton(withTitle: "Quit")
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+        }
     }
 }
