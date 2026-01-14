@@ -15,7 +15,7 @@ final class StatusBarController: NSObject {
         super.init()
 
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Transcribtion")
+            let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "CaptionLayer")
             image?.isTemplate = true
             button.image = image
         }

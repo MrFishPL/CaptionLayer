@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-struct TranscribtionApp {
+struct CaptionLayerApp {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
