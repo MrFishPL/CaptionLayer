@@ -16,3 +16,9 @@ DerivedData/
 *.xcworkspace
 *.xcodeproj
 *.xcscheme
+.swiftpm-cache
+dist/
+Packaging/AppIcon.icns
+Packaging/dmg-background.png
+.vscode/
+AudioCap/

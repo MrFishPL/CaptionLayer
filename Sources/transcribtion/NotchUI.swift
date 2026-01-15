@@ -12,6 +12,8 @@ final class NotchPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         level = .statusBar
+        ignoresMouseEvents = true
+        acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         setFrame(frame, display: true)
     }
@@ -21,17 +23,20 @@ final class NotchPanel: NSPanel {
 }
 
 final class NotchView: NSView {
+    static let markerToken = "[tab]"
     private let maskLayer = CAShapeLayer()
     private let textView: NSTextView
     private let scrollView: NSScrollView
     private let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
+    private var hoverTrackingArea: NSTrackingArea?
+    private(set) var isHovering = false
 
     override init(frame frameRect: NSRect) {
         textView = NSTextView(frame: .zero)
         scrollView = NSScrollView(frame: .zero)
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.75).cgColor
         layer?.mask = maskLayer
 
         textView.font = font
@@ -82,8 +87,54 @@ final class NotchView: NSView {
         updateMaskPath()
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea {
+            removeTrackingArea(hoverTrackingArea)
+        }
+
+        let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .inVisibleRect]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        hoverTrackingArea = area
+        addTrackingArea(area)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+    }
+
     func setText(_ text: String) {
-        textView.string = text
+        let displayText = text
+        textView.alignment = .center
+        let attributed = NSMutableAttributedString(
+            string: displayText,
+            attributes: [
+                .font: font,
+                .foregroundColor: NSColor.white.withAlphaComponent(0.9),
+            ]
+        )
+
+        let marker = NotchView.markerToken
+        if !marker.isEmpty {
+            var searchRange = NSRange(location: 0, length: attributed.length)
+            while true {
+                let found = (attributed.string as NSString).range(of: marker, options: [], range: searchRange)
+                if found.location == NSNotFound { break }
+                let attachment = NSTextAttachment()
+                attachment.attachmentCell = MarkerAttachmentCell()
+                let replacement = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
+                replacement.append(NSAttributedString(string: " ", attributes: [.font: font]))
+                attributed.replaceCharacters(in: found, with: replacement)
+                let nextLocation = found.location + replacement.length
+                searchRange = NSRange(location: nextLocation, length: max(0, attributed.length - nextLocation))
+            }
+        }
+
+        textView.textStorage?.setAttributedString(attributed)
         updateTextLayout()
     }
 
@@ -136,5 +187,24 @@ final class NotchView: NSView {
         path.closeSubpath()
 
         maskLayer.path = path
+    }
+}
+
+final class MarkerAttachmentCell: NSTextAttachmentCell {
+    private let size = NSSize(width: 6, height: 6)
+
+    override func cellSize() -> NSSize {
+        size
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView?) {
+        let rect = NSRect(
+            x: cellFrame.minX,
+            y: cellFrame.minY + (cellFrame.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+        NSColor.systemBlue.setFill()
+        rect.fill()
     }
 }

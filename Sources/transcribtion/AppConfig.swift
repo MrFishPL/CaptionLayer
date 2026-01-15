@@ -6,4 +6,5 @@ enum AppConfig {
     static let bottomPadding: CGFloat = 10
     static let topDeadArea: CGFloat = 40
     static let pauseForBlankLine: TimeInterval = 1.2
+    static let displayCharLimit: Int = 220
 }

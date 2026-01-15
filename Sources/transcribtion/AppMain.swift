@@ -1,7 +1,8 @@
 import AppKit
 
 @main
-struct TranscribtionApp {
+@available(macOS 14.4, *)
+struct CaptionLayerApp {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
@@ -20,6 +21,8 @@ struct TranscribtionApp {
 
         let transcription = TranscriptionController(notchView: notchView)
         transcription.start()
+        let statusBar = StatusBarController(panel: panel, transcription: transcription)
+        _ = statusBar
 
         app.run()
     }

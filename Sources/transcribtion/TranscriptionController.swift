@@ -1,16 +1,22 @@
 import AVFoundation
 import Foundation
+import AppKit
 
+@available(macOS 14.4, *)
 final class TranscriptionController {
     private let notchView: NotchView
     private let sendQueue = DispatchQueue(label: "transcribtion.scribe.send")
-    private let audioEngine = AVAudioEngine()
+    private let audioCaptureQueue = DispatchQueue(label: "transcribtion.audio.capture")
     private var audioConverter: AVAudioConverter?
+    private var systemAudioTap: SystemAudioTap?
     private var webSocket: URLSessionWebSocketTask?
     private var committedText = ""
     private var partialText = ""
     private var isSessionReady = false
     private var lastCommitTime: Date?
+    private var isListening = false
+    private var apiKey: String?
+    private var didShowAuthError = false
 
     private let targetSampleRate: Double = 16_000
     private let targetChannels: AVAudioChannelCount = 1
@@ -20,29 +26,56 @@ final class TranscriptionController {
     }
 
     func start() {
-        requestMicrophoneAccess { [weak self] granted in
-            guard let self else { return }
-            if !granted {
-                self.updateUI("Microphone access denied.")
-                return
-            }
-
-            guard let apiKey = EnvLoader.loadApiKey() else {
-                self.updateUI("Missing ELEVENLABS_API_KEY in .env.")
-                return
-            }
-
-            self.connectWebSocket(apiKey: apiKey)
-            self.startAudioCapture()
-        }
+        resumeListening()
     }
 
-    private func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            DispatchQueue.main.async {
-                completion(granted)
+    func resumeListening() {
+        guard !isListening else { return }
+        guard let apiKey = apiKey ?? EnvLoader.loadApiKey() else {
+            presentTokenPrompt { [weak self] token in
+                guard let self else { return }
+                guard let token, !token.isEmpty else {
+                    self.logError("Missing ELEVENLABS_API_KEY.")
+                    self.alertMissingTokenAndQuit()
+                    return
+                }
+                EnvLoader.saveApiKey(token)
+                self.apiKey = token
+                self.resumeListening()
             }
+            return
         }
+
+        didShowAuthError = false
+        self.apiKey = apiKey
+        self.isListening = true
+        self.isSessionReady = false
+        self.connectWebSocket(apiKey: apiKey)
+        self.startAudioCapture()
+    }
+
+    func stopListening() {
+        guard isListening else { return }
+        isListening = false
+        isSessionReady = false
+        stopAudioCapture()
+        webSocket?.cancel(with: .goingAway, reason: nil)
+        webSocket = nil
+        updateUI("Paused")
+    }
+
+    func clearTranscription() {
+        committedText = ""
+        partialText = ""
+        updateUI("Listening...")
+    }
+
+    func insertTabMarker() {
+        let marker = NotchView.markerToken
+        let prefix = committedText.isEmpty ? "" : " "
+        committedText = committedText + prefix + marker + " "
+        committedText = trimIfNeeded(committedText)
+        updateUI(currentDisplayText())
     }
 
     private func connectWebSocket(apiKey: String) {
@@ -72,11 +105,12 @@ final class TranscriptionController {
     }
 
     private func receiveMessages() {
-        webSocket?.receive { [weak self] result in
+        guard isListening, let webSocket else { return }
+        webSocket.receive { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure(let error):
-                self.updateUI("WebSocket error: \(error.localizedDescription)")
+                self.logError("WebSocket error: \(error.localizedDescription)")
             case .success(let message):
                 switch message {
                 case .data(let data):
@@ -120,7 +154,7 @@ final class TranscriptionController {
                 if committedText.isEmpty {
                     prefix = ""
                 } else if gap >= AppConfig.pauseForBlankLine {
-                    prefix = "\n\n"
+                    prefix = "\n"
                 } else {
                     prefix = " "
                 }
@@ -133,7 +167,10 @@ final class TranscriptionController {
             updateUI(currentDisplayText())
         case "auth_error", "quota_exceeded", "transcriber_error", "input_error", "error":
             let errorText = dict["error"] as? String ?? "Unknown error"
-            updateUI("Scribe error: \(errorText)")
+            logError("Scribe error: \(errorText)")
+            if messageType == "auth_error" {
+                handleAuthError()
+            }
         default:
             break
         }
@@ -152,26 +189,38 @@ final class TranscriptionController {
     }
 
     private func startAudioCapture() {
-        let inputNode = audioEngine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-        let targetFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: targetSampleRate,
-            channels: targetChannels,
-            interleaved: true
-        )!
-
-        audioConverter = AVAudioConverter(from: inputFormat, to: targetFormat)
-
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            self?.processAudioBuffer(buffer, targetFormat: targetFormat)
+        guard systemAudioTap == nil else { return }
+        guard #available(macOS 14.4, *) else {
+            logError("System audio capture requires macOS 14.4 or newer.")
+            updateUI("macOS 14.4+ required for system audio.")
+            return
         }
 
         do {
-            try audioEngine.start()
+            let tap = try SystemAudioTap()
+            let targetFormat = AVAudioFormat(
+                commonFormat: .pcmFormatInt16,
+                sampleRate: targetSampleRate,
+                channels: targetChannels,
+                interleaved: true
+            )!
+
+            audioConverter = AVAudioConverter(from: tap.format, to: targetFormat)
+            systemAudioTap = tap
+
+            try tap.start(on: audioCaptureQueue) { [weak self] buffer in
+                self?.processAudioBuffer(buffer, targetFormat: targetFormat)
+            }
         } catch {
-            updateUI("Audio engine error: \(error.localizedDescription)")
+            logError("System audio capture error: \(error.localizedDescription)")
+            updateUI("Unable to capture system audio.")
         }
+    }
+
+    private func stopAudioCapture() {
+        systemAudioTap?.stop()
+        systemAudioTap = nil
+        audioConverter = nil
     }
 
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer, targetFormat: AVAudioFormat) {
@@ -190,7 +239,7 @@ final class TranscriptionController {
         }
 
         if let error {
-            updateUI("Audio convert error: \(error.localizedDescription)")
+            logError("Audio convert error: \(error.localizedDescription)")
             return
         }
 
@@ -201,7 +250,7 @@ final class TranscriptionController {
     }
 
     private func sendAudioData(_ data: Data, sampleRate: Int) {
-        guard isSessionReady, let webSocket else { return }
+        guard isListening, isSessionReady, let webSocket else { return }
         let payload: [String: Any] = [
             "message_type": "input_audio_chunk",
             "audio_base_64": data.base64EncodedString(),
@@ -221,6 +270,56 @@ final class TranscriptionController {
     private func updateUI(_ text: String) {
         DispatchQueue.main.async { [weak self] in
             self?.notchView.setText(text)
+        }
+    }
+
+    private func logError(_ message: String) {
+        NSLog("[Transcription] %@", message)
+    }
+
+    private func handleAuthError() {
+        guard !didShowAuthError else { return }
+        didShowAuthError = true
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "There was an error. Is your token correct?"
+            alert.informativeText = "Capture Layer will now quit. Please check your ElevenLabs API key."
+            alert.addButton(withTitle: "Quit")
+            alert.runModal()
+            EnvLoader.removeApiKey()
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    func presentTokenPrompt(completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Enter ElevenLabs API Key"
+            alert.informativeText = "This key is saved locally for Capture Layer."
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            field.placeholderString = "ELEVENLABS_API_KEY"
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                completion(value.isEmpty ? nil : value)
+            } else {
+                completion(nil)
+            }
+        }
+    }
+
+    private func alertMissingTokenAndQuit() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Token Required"
+            alert.informativeText = "Please set your ElevenLabs API key to use Capture Layer."
+            alert.addButton(withTitle: "Quit")
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
         }
     }
 }
