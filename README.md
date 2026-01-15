@@ -7,9 +7,9 @@
     </a>
 </div>
   
-# CaptureLayer
+# CaptionLayer
 
-CaptureLayer is a lightweight macOS menu‑bar app that transcribes what your computer plays. It listens to system output audio (not the microphone) and displays live text in a small notch‑style overlay.
+CaptionLayer is a lightweight macOS menu‑bar app that transcribes what your computer plays. It listens to system output audio (not the microphone) and displays live text in a small notch‑style overlay.
 
 Inspired by [Notchie](https://www.notchie.app/).
 
@@ -24,11 +24,11 @@ Inspired by [Notchie](https://www.notchie.app/).
 
 ## Install
 1. Download the installer DMG.
-2. Drag **CaptureLayer.app** to **Applications**.
+2. Drag **CaptionLayer.app** to **Applications**.
 3. Launch the app from Applications.
 
 ## First Run
-On first launch, CaptureLayer will prompt for your ElevenLabs API key.  
+On first launch, CaptionLayer will prompt for your ElevenLabs API key.  
 If the key is missing or invalid, the app will tell you and quit.  
 macOS will also prompt for system audio capture permission.
 
@@ -39,14 +39,14 @@ Use the menu‑bar icon:
 On next launch, you’ll be asked to enter a new key.
 
 ## Usage
-- Once running, CaptureLayer transcribes system audio and shows text in the overlay.
+- Once running, CaptionLayer transcribes system audio and shows text in the overlay.
 - Use the menu‑bar icon to hide/show the panel or quit.
 
 ## Permissions
 - **System Audio**: required to capture output audio.
 
 ## Notes
-- CaptureLayer listens to system output audio only (it does not use the microphone).
+- CaptionLayer listens to system output audio only (it does not use the microphone).
 - The API key is stored locally using macOS user defaults.
 
 ## Run From Source (for developers)

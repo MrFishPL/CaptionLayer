@@ -73,7 +73,7 @@ final class StatusBarController: NSObject {
     private func alertBeforeQuit() {
         let alert = NSAlert()
         alert.messageText = "Token Removed"
-        alert.informativeText = "Capture Layer will now quit. Please reopen it to continue."
+        alert.informativeText = "Caption Layer will now quit. Please reopen it to continue."
         alert.addButton(withTitle: "Quit")
         alert.runModal()
         NSApplication.shared.terminate(nil)

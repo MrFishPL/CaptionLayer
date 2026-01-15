@@ -29,6 +29,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>CaptureLayer captures system audio output for transcription.</string>
+    <string>CaptionLayer captures system audio output for transcription.</string>
 </dict>
 </plist>

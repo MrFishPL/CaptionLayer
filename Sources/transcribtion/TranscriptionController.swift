@@ -283,7 +283,7 @@ final class TranscriptionController {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "There was an error. Is your token correct?"
-            alert.informativeText = "Capture Layer will now quit. Please check your ElevenLabs API key."
+            alert.informativeText = "Caption Layer will now quit. Please check your ElevenLabs API key."
             alert.addButton(withTitle: "Quit")
             alert.runModal()
             EnvLoader.removeApiKey()
@@ -295,7 +295,7 @@ final class TranscriptionController {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Enter ElevenLabs API Key"
-            alert.informativeText = "This key is saved locally for Capture Layer."
+            alert.informativeText = "This key is saved locally for Caption Layer."
             let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
             field.placeholderString = "ELEVENLABS_API_KEY"
             alert.accessoryView = field
@@ -316,7 +316,7 @@ final class TranscriptionController {
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Token Required"
-            alert.informativeText = "Please set your ElevenLabs API key to use Capture Layer."
+            alert.informativeText = "Please set your ElevenLabs API key to use Caption Layer."
             alert.addButton(withTitle: "Quit")
             alert.runModal()
             NSApplication.shared.terminate(nil)

@@ -23,12 +23,12 @@
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>14.4</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>CaptionLayer needs microphone access to transcribe audio.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>CaptionLayer captures system audio output for transcription.</string>
 </dict>
 </plist>
