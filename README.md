@@ -1,9 +1,9 @@
 <div>
     <a href="https://www.loom.com/share/6ad520e4ef004ee69b66279734750089">
-      <p>Introducing a New Live Transcription App for Our Communities! 🎤 - Watch Video</p>
+      <p>Watch Demo 🎤</p>
     </a>
-    <a href="https://www.loom.com/share/6ad520e4ef004ee69b66279734750089">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/6ad520e4ef004ee69b66279734750089-21c09d832a17f18b-full-play.gif#t=0.1">
+    <a href="https://www.loom.com/share/6ad520e4ef004ee69b66279734750089" target="_blank">
+      <img style="max-width:600px;" src="https://cdn.loom.com/sessions/thumbnails/6ad520e4ef004ee69b66279734750089-21c09d832a17f18b-full-play.gif#t=0.1">
     </a>
 </div>
   
