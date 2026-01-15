@@ -2,6 +2,8 @@
 
 CaptureLayer is a lightweight macOS menu‑bar app that transcribes what your computer plays. It listens to system output audio (not the microphone) and displays live text in a small notch‑style overlay.
 
+Inspired by [Notchie](https://www.notchie.app/).
+
 ## Features
 - Real‑time transcription for system audio.
 - Minimal UI that stays out of the way.
