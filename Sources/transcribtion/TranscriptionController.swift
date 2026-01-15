@@ -2,11 +2,13 @@ import AVFoundation
 import Foundation
 import AppKit
 
+@available(macOS 14.4, *)
 final class TranscriptionController {
     private let notchView: NotchView
     private let sendQueue = DispatchQueue(label: "transcribtion.scribe.send")
-    private let audioEngine = AVAudioEngine()
+    private let audioCaptureQueue = DispatchQueue(label: "transcribtion.audio.capture")
     private var audioConverter: AVAudioConverter?
+    private var systemAudioTap: SystemAudioTap?
     private var webSocket: URLSessionWebSocketTask?
     private var committedText = ""
     private var partialText = ""
@@ -45,19 +47,11 @@ final class TranscriptionController {
         }
 
         didShowAuthError = false
-        requestMicrophoneAccess { [weak self] granted in
-            guard let self else { return }
-            if !granted {
-                self.logError("Audio input access denied.")
-                return
-            }
-
-            self.apiKey = apiKey
-            self.isListening = true
-            self.isSessionReady = false
-            self.connectWebSocket(apiKey: apiKey)
-            self.startAudioCapture()
-        }
+        self.apiKey = apiKey
+        self.isListening = true
+        self.isSessionReady = false
+        self.connectWebSocket(apiKey: apiKey)
+        self.startAudioCapture()
     }
 
     func stopListening() {
@@ -82,14 +76,6 @@ final class TranscriptionController {
         committedText = committedText + prefix + marker + " "
         committedText = trimIfNeeded(committedText)
         updateUI(currentDisplayText())
-    }
-
-    private func requestMicrophoneAccess(completion: @escaping (Bool) -> Void) {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            DispatchQueue.main.async {
-                completion(granted)
-            }
-        }
     }
 
     private func connectWebSocket(apiKey: String) {
@@ -203,41 +189,37 @@ final class TranscriptionController {
     }
 
     private func startAudioCapture() {
-        guard !audioEngine.isRunning else { return }
-        let inputNode = audioEngine.inputNode
-        if let deviceName = EnvLoader.loadAudioDeviceName(),
-           !deviceName.isEmpty {
-            if !AudioDeviceSelector.setInputDevice(named: deviceName, for: inputNode) {
-                logError("Input device not found: \(deviceName)")
-            }
-        }
-
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-        let targetFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: targetSampleRate,
-            channels: targetChannels,
-            interleaved: true
-        )!
-
-        audioConverter = AVAudioConverter(from: inputFormat, to: targetFormat)
-
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            self?.processAudioBuffer(buffer, targetFormat: targetFormat)
+        guard systemAudioTap == nil else { return }
+        guard #available(macOS 14.4, *) else {
+            logError("System audio capture requires macOS 14.4 or newer.")
+            updateUI("macOS 14.4+ required for system audio.")
+            return
         }
 
         do {
-            try audioEngine.start()
+            let tap = try SystemAudioTap()
+            let targetFormat = AVAudioFormat(
+                commonFormat: .pcmFormatInt16,
+                sampleRate: targetSampleRate,
+                channels: targetChannels,
+                interleaved: true
+            )!
+
+            audioConverter = AVAudioConverter(from: tap.format, to: targetFormat)
+            systemAudioTap = tap
+
+            try tap.start(on: audioCaptureQueue) { [weak self] buffer in
+                self?.processAudioBuffer(buffer, targetFormat: targetFormat)
+            }
         } catch {
-            logError("Audio engine error: \(error.localizedDescription)")
+            logError("System audio capture error: \(error.localizedDescription)")
+            updateUI("Unable to capture system audio.")
         }
     }
 
     private func stopAudioCapture() {
-        guard audioEngine.isRunning else { return }
-        let inputNode = audioEngine.inputNode
-        inputNode.removeTap(onBus: 0)
-        audioEngine.stop()
+        systemAudioTap?.stop()
+        systemAudioTap = nil
         audioConverter = nil
     }
 

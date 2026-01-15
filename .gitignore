@@ -21,3 +21,4 @@ dist/
 Packaging/AppIcon.icns
 Packaging/dmg-background.png
 .vscode/
+AudioCap/

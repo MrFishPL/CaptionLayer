@@ -1,5 +1,6 @@
 import AppKit
 
+@available(macOS 14.4, *)
 final class StatusBarController: NSObject {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
@@ -79,6 +80,7 @@ final class StatusBarController: NSObject {
     }
 }
 
+@available(macOS 14.4, *)
 extension StatusBarController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         updateToggleTitle()
